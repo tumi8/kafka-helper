@@ -2,6 +2,7 @@ import asyncio
 import fastavro
 import io
 import kafka
+import time
 
 
 class KafkaProducerContextManager:
@@ -14,7 +15,15 @@ class KafkaProducerContextManager:
         self.lock = asyncio.locks.Lock()
 
     def __enter__(self):
-        self.producer = kafka.KafkaProducer(**self.config)
+        errors = 0
+        while not self.producer:
+            try:
+                self.producer = kafka.KafkaProducer(**self.config)
+            except kafka.errors.NoBrokersAvailable as e:
+                errors += 1
+                if errors >= 3:
+                    raise e
+                time.sleep(3)
         return self
 
     def __exit__(self, *args):
@@ -35,22 +44,6 @@ class KafkaProducerContextManager:
             self.buffer.seek(0)
             self.buffer.truncate(0)
 
-    async def write_async(self, value, topic):
-        async with self.lock:
-            future = self.producer.send(topic, value=value)
-            future.get(timeout=20)
-
-    async def write_avro_async(self, value, schema, topic):
-        fastavro.writer(self.buffer, schema, value)
-        raw_bytes = self.buffer.getvalue()
-        async with self.lock:
-            try:
-                future = self.producer.send(topic, value=raw_bytes)
-                future.get(timeout=20)
-            finally:
-                self.buffer.seek(0)
-                self.buffer.truncate(0)
-
 
 class KafkaConsumerContextManager:
     __slots__ = ('config', 'topics', 'consumer', 'buffer')
@@ -62,7 +55,15 @@ class KafkaConsumerContextManager:
         self.buffer = io.BytesIO()
 
     def __enter__(self):
-        self.consumer = kafka.KafkaConsumer(*self.topics, **self.config)
+        errors = 0
+        while not self.consumer:
+            try:
+                self.consumer = kafka.KafkaConsumer(*self.topics, **self.config)
+            except kafka.errors.NoBrokersAvailable as e:
+                errors += 1
+                if errors >= 3:
+                    raise e
+                time.sleep(3)
         return self
 
     def __exit__(self, *args):

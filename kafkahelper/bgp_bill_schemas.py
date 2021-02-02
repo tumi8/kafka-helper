@@ -98,6 +98,73 @@ TLSTARGETSCHEMA = fastavro.parse_schema({
     ],
 })
 
+TLSIMPACTTARGETSCHEMA = fastavro.parse_schema({
+    'name': 'tls_impact_targer',
+    'namespace': 'heap',
+    'type': 'record',
+    'fields': [
+        {'name': 'id', 'type': 'string'},
+        {'name': 'ip', 'type': 'string'},
+        {'name': 'server_name', 'type': 'string'},
+        {'name': 'blocked', 'type': 'boolean'},
+        {'name': 'scan_timestamp', 'type': 'int'},
+        {'name': 'protocol', 'type': 'int'},
+        {'name': 'cipher', 'type': 'string'},
+        {'name': 'pub_key_hash', 'type': 'string'},
+        {'name': 'cert_hash', 'type': 'string'},
+        {'name': 'cert_valid', 'type': 'boolean'}
+    ],
+})
+
+EVENTENDEDSCHEMA = fastavro.parse_schema({
+    'name': 'event_end',
+    'namespace': 'heap',
+    'type': 'record',
+    'fields': [
+        {'name': 'id', 'type': 'string'},
+        {
+            'name': 'end_reason',
+            'type': 'enum',
+            'namespace': 'heap',
+            'symbols': ['MOAS', 'subMOAS', 'isLeastSpecific', 'withdrawed', 'notAnnounced', 'notAnnouncedByOrigin']
+        },
+        {'name': 'withdrawal_ts', 'type': ['null', 'int'], 'default': None},
+        {
+            'name': 'moas_announcements',
+            'type': ['null', {
+                'type': 'array',
+                'items': {
+                    'name': 'moas_announcement',
+                    'namespace': 'heap',
+                    'type': 'record',
+                    'fields': [
+                        {'name': 'origin', 'type': 'int'},
+                        {'name': 'announcement', 'type': 'int'},
+                    ]
+                }
+            }],
+            'default': None
+        },
+        {
+            'name': 'submoas_announcements',
+            'type': ['null', {
+                'type': 'array',
+                'items': {
+                    'name': 'submoa_announcement',
+                    'namespace': 'heap',
+                    'type': 'record',
+                    'fields': [
+                        {'name': 'prefix', 'type': 'string'},
+                        {'name': 'origin', 'type': 'int'},
+                        {'name': 'announcement', 'type': 'int'},
+                    ]
+                }
+            }],
+            'default': None
+        },
+    ],
+})
+
 IRRSCHEMA = fastavro.parse_schema({
   "name": "irrrov",
   "type": "record",
@@ -199,5 +266,6 @@ IRRSCHEMA = fastavro.parse_schema({
   ]
 })
 
-__all__ = ['BASICALERTSCHEMA', 'TLSTARGETSCHEMA', 'IRRSCHEMA']
+
+__all__ = ['BASICALERTSCHEMA', 'TLSTARGETSCHEMA', 'IRRSCHEMA', 'TLSIMPACTTARGETSCHEMA', 'EVENTENDEDSCHEMA']
 

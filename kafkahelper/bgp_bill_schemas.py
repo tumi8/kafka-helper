@@ -124,9 +124,12 @@ EVENTENDEDSCHEMA = fastavro.parse_schema({
         {'name': 'id', 'type': 'string'},
         {
             'name': 'end_reason',
-            'type': 'enum',
-            'namespace': 'heap',
-            'symbols': ['MOAS', 'subMOAS', 'isLeastSpecific', 'withdrawed', 'notAnnounced', 'notAnnouncedByOrigin']
+            'type': {
+                'name': 'end_reason',
+                'type': 'enum',
+                'namespace': 'heap',
+                'symbols': ['MOAS', 'subMOAS', 'isLeastSpecific', 'withdrawed', 'notAnnounced', 'notAnnouncedByOrigin']
+            }
         },
         {'name': 'withdrawal_ts', 'type': ['null', 'int'], 'default': None},
         {

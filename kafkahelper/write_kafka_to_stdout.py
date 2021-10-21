@@ -79,7 +79,7 @@ def parse_messages(consumer,args):
         if args.avro:
             # avro is batched
             for m in message:
-                write_message(json.dumps(m)+"\n", args.binary)
+                write_message(json.dumps(m), args.binary)
         else: 
             if not args.message_list:
                 # One entry per message
@@ -115,8 +115,12 @@ def write_message(message, binary):
         sys.stdout.buffer.write(message.value)
         sys.stdout.buffer.write(b'\n')
     else:
-        sys.stdout.write(message.value.decode('utf-8')+"\n")
+        if hasattr(message, 'value'):
+            sys.stdout.write(message.value.decode('utf-8')+"\n")
+        else:
+           sys.stdout.write(message+"\n")
     sys.stdout.flush()
+    logging.debug("Wrote msg to stdout")
 
 
 if __name__ == '__main__':

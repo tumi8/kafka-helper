@@ -88,7 +88,7 @@ def parse_messages(consumer,args):
                 # Multiple entries per kafka message -> parse entries
                 # List without avro: expecting JSON
                 decode_json_list(message, args)
-            consumer.consumer.commit()
+        consumer.consumer.commit()
 
 
 def decode_json_list(message, args):

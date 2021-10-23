@@ -89,7 +89,7 @@ def write_messages(args, producer):
             
             # Not Batched, every line one kafka message
             if args.avro:
-                producer.write_avro(line.strip(), schema, args.topic)
+                producer.write_avro([json.loads(line.strip())], schema, args.topic)
             else :
                 producer.write(bytes(line.strip(), 'utf-8'), args.topic)
             logging.debug('message send to kafka topic %s',args.topic)

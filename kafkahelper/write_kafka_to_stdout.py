@@ -2,9 +2,12 @@
 import argparse
 import json
 import logging
+from time import sleep
 import sdnotify
 import sys
+from threading import Thread
 from kafkahelper import KafkaConsumerContextManager
+
 
 
 def main():
@@ -34,6 +37,11 @@ def main():
             if name.startswith('kafka.'):
                 kafka_logger = logging.getLogger(name)
                 kafka_logger.setLevel(logging.INFO)
+    
+    global written_messages
+    logging_thread = Thread(target=log_process, args=(args.verbose,))
+    logging_thread.setDaemon(True)
+    logging_thread.start()
 
     try:
         if args.kafka_username is not None and args.kafka_password is not None:
@@ -54,7 +62,9 @@ def main():
                 parse_messages(consumer,args)     
     except KeyboardInterrupt:
         logging.error('stopping due to keyboard interrupt')
+        written_messages = -1
 
+written_messages = 0
 
 def parse_messages(consumer,args):
     """
@@ -62,6 +72,8 @@ def parse_messages(consumer,args):
     """
     systemd_notifier = sdnotify.SystemdNotifier()
     systemd_notifier.notify('READY=1')
+
+    global written_messages
 
     if args.avro:
         # Load Avro Schema
@@ -74,7 +86,7 @@ def parse_messages(consumer,args):
     for message in messages:
         # Parse messages
         systemd_notifier.notify('WATCHDOG=1')
-        logging.debug(f'received message')
+        #logging.debug(f'received message')
 
         if args.avro:
             # avro is batched
@@ -119,8 +131,22 @@ def write_message(message, binary):
             sys.stdout.write(message.value.decode('utf-8')+"\n")
         else:
            sys.stdout.write(message+"\n")
+
+    global written_messages
+    written_messages += 1
     sys.stdout.flush()
-    logging.debug("Wrote msg to stdout")
+    #logging.debug("Wrote msg to stdout")
+
+
+def log_process(verbose):
+    """
+    If logging verbose, prints the number of processed messages of the last period every 5 minutes
+    """
+    global written_messages
+    while verbose and written_messages >= 0:
+        logging.debug('Wrote %d messages to stdout in last 5 min', written_messages)
+        written_messages = 0
+        sleep(60*5)
 
 
 if __name__ == '__main__':

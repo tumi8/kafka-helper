@@ -55,6 +55,7 @@ list_lock = Lock()
 shutting_down = Event()
 message_list = []
 time_of_last_message = None
+written_messages = 0
 
 
 def write_messages(args, producer):
@@ -65,6 +66,10 @@ def write_messages(args, producer):
     
     systemd_notifier = sdnotify.SystemdNotifier()
     systemd_notifier.notify('READY=1')
+
+    logging_thread = Thread(target=log_process, args=(args.verbose,))
+    logging_thread.setDaemon(True)
+    logging_thread.start()
 
     if args.avro: 
         # Load AVRO schema
@@ -82,7 +87,7 @@ def write_messages(args, producer):
     for line in sys.stdin:
         # Read message from stdin
         systemd_notifier.notify('WATCHDOG=1')
-        logging.debug('read line: %s',line.strip())
+        #logging.debug('read line: %s',line.strip())
 
         # Send message to Kafka
         if not args.message_list:
@@ -92,8 +97,10 @@ def write_messages(args, producer):
                 producer.write_avro([json.loads(line.strip())], schema, args.topic)
             else :
                 producer.write(bytes(line.strip(), 'utf-8'), args.topic)
-            logging.debug('message send to kafka topic %s',args.topic)
-        
+                
+            #logging.debug('message send to kafka topic %s',args.topic)
+            global written_messages
+            written_messages += 1
         else:
 
             # Message List -> Batched, multiple lines one Kafka Messages
@@ -144,9 +151,22 @@ def write_list(args, producer, schema) -> float:
             else: 
                 # Sending as JSON list
                 producer.write(bytes(json.dumps(message_list), 'utf-8'), args.topic)  
-            logging.debug('message list with %d entries send to kafka topic %s', len(message_list), args.topic)
+            #logging.debug('message list with %d entries send to kafka topic %s', len(message_list), args.topic)
+            global written_messages
+            written_messages += len(message_list)
             message_list.clear()
     return time.monotonic()
+
+
+def log_process(verbose):
+    """
+    If logging verbose, prints the number of processed messages of the last period every 5 minutes
+    """
+    global written_messages
+    while verbose and written_messages >= 0:
+        logging.debug('Wrote %d messages to kafka in last 5 min', written_messages)
+        written_messages = 0
+        time.sleep(60*5)
 
 if __name__ == '__main__':
     main()

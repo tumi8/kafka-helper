@@ -2,12 +2,9 @@
 import argparse
 import json
 import logging
-from time import sleep
 import sdnotify
 import sys
-from threading import Thread
 from kafkahelper import KafkaConsumerContextManager
-
 
 
 def main():
@@ -17,32 +14,32 @@ def main():
  python write_kafka_to_stdout.py -s localhost:9092 -t myTopic -g myGroup -u myUser -p myPassword -a schema_module schema_name  
  
 '''
-    parser = argparse.ArgumentParser(description='Write kafka topic to stdin', epilog=example_usage, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(description='Write kafka topic to stdin', epilog=example_usage,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-s', '--kafka-server', type=str, help='kafka server address', required=True)
     parser.add_argument('-t', '--topic', type=str, help='The kafka topic to observe', required=True)
     parser.add_argument('-g', '--group-name', type=str, help='The kafka Group Name (Client id is 1)', required=True)
     parser.add_argument('-u', '--kafka-username', type=str, help='kafka username')
     parser.add_argument('-p', '--kafka-password', type=str, help='password for the kafka user')
-    parser.add_argument('-a', '--avro', nargs=2, metavar=('MODULE', 'SCHEMA'), type=str, help='Set avro schema if message is an avro message')
-    parser.add_argument('-l', '--message-list', action='store_true', help='message contains a list which item each should go in a separate row')
+    parser.add_argument('-a', '--avro', nargs=2, metavar=('MODULE', 'SCHEMA'), type=str,
+                        help='Set avro schema if message is an avro message')
+    parser.add_argument('-l', '--message-list', action='store_true',
+                        help='message contains a list which item each should go in a separate row')
     parser.add_argument('-b', '--binary', action='store_true', help='binary output')
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='enable debug logging. -vv enables also kafka debug logging')
+    parser.add_argument('-n', '--num-messages', type=int, help='Only read number of messages')
+    parser.add_argument('-v', '--verbose', action='count', default=0,
+                        help='enable debug logging. -vv enables also kafka debug logging')
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose > 0 else logging.INFO,
                         format='%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
 
-    if args.verbose == 1:
+    if args.verbose >= 1:
         for name in logging.root.manager.loggerDict:
             if name.startswith('kafka.'):
                 kafka_logger = logging.getLogger(name)
                 kafka_logger.setLevel(logging.INFO)
     
-    global written_messages
-    logging_thread = Thread(target=log_process, args=(args.verbose,))
-    logging_thread.setDaemon(True)
-    logging_thread.start()
-
     try:
         if args.kafka_username is not None and args.kafka_password is not None:
             # With authentication through security credentials
@@ -53,27 +50,23 @@ def main():
                                             sasl_plain_username=args.kafka_username,
                                             sasl_plain_password=args.kafka_password,
                                             enable_auto_commit=False) as consumer:
-                parse_messages(consumer,args)
+                parse_messages(consumer, args)
         else:
             # Without authentication
             with KafkaConsumerContextManager(args.topic, group_id=args.group_name,
                                             bootstrap_servers=args.kafka_server, client_id=1,
                                             enable_auto_commit=False) as consumer:
-                parse_messages(consumer,args)     
+                parse_messages(consumer, args)
     except KeyboardInterrupt:
         logging.error('stopping due to keyboard interrupt')
-        written_messages = -1
 
-written_messages = 0
 
-def parse_messages(consumer,args):
+def parse_messages(consumer, args):
     """
     Parses the Kafka-Message and writes it into stdout
     """
     systemd_notifier = sdnotify.SystemdNotifier()
     systemd_notifier.notify('READY=1')
-
-    global written_messages
 
     if args.avro:
         # Load Avro Schema
@@ -86,7 +79,6 @@ def parse_messages(consumer,args):
     for message in messages:
         # Parse messages
         systemd_notifier.notify('WATCHDOG=1')
-        #logging.debug(f'received message')
 
         if args.avro:
             # avro is batched
@@ -123,30 +115,17 @@ def write_message(message, binary):
     """
     Writes given message to stdout
     """
-    if binary: 
+    if binary:
         sys.stdout.buffer.write(message.value)
         sys.stdout.buffer.write(b'\n')
     else:
         if hasattr(message, 'value'):
-            sys.stdout.write(message.value.decode('utf-8')+"\n")
+            print(message.value.decode('utf-8')+"\n")
         else:
-           sys.stdout.write(message+"\n")
+            print(message+"\n")
 
-    global written_messages
-    written_messages += 1
     sys.stdout.flush()
     #logging.debug("Wrote msg to stdout")
-
-
-def log_process(verbose):
-    """
-    If logging verbose, prints the number of processed messages of the last period every 5 minutes
-    """
-    global written_messages
-    while verbose and written_messages >= 0:
-        logging.debug('Wrote %d messages to stdout in last 5 min', written_messages)
-        written_messages = 0
-        sleep(60*5)
 
 
 if __name__ == '__main__':

@@ -2,10 +2,10 @@
 
 from distutils.core import setup
 
-install_requires = ['kafka-python>=2.0.0', 'fastavro>=1.2.0']
+install_requires = ['kafka-python>=2.0.0', 'fastavro>=1.2.0', 'sdnotify>=0.3.2']
 
 setup(name='I8 Kafka Helper',
-      version='0.1',
+      version='0.1.1',
       description='A kafka helper with some schemas used at I8',
       author='TUM I8',
       author_email='sattler@net.in.tum.de',

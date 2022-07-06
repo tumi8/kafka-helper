@@ -26,7 +26,7 @@ def main():
     parser.add_argument('-l', '--message-list', action='store_true',
                         help='message contains a list which item each should go in a separate row')
     parser.add_argument('-b', '--binary', action='store_true', help='binary output')
-    parser.add_argument('-n', '--num-messages', type=int, help='Only read number of messages')
+    parser.add_argument('-n', '--num-messages', type=int, default=-1, help='Only read number of messages')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='enable debug logging. -vv enables also kafka debug logging')
     args = parser.parse_args()
@@ -57,6 +57,7 @@ def main():
                                             bootstrap_servers=args.kafka_server, client_id=1,
                                             enable_auto_commit=False) as consumer:
                 parse_messages(consumer, args)
+
     except KeyboardInterrupt:
         logging.error('stopping due to keyboard interrupt')
 
@@ -76,6 +77,7 @@ def parse_messages(consumer, args):
     else:
         messages = consumer.consumer
 
+    message_count = 0
     for message in messages:
         # Parse messages
         systemd_notifier.notify('WATCHDOG=1')
@@ -93,6 +95,10 @@ def parse_messages(consumer, args):
                 # List without avro: expecting JSON
                 decode_json_list(message, args)
         consumer.consumer.commit()
+
+        message_count += 1
+        if 0 < args.num_messages <= message_count:
+            return
 
 
 def decode_json_list(message, args):

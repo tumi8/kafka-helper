@@ -34,11 +34,11 @@ def main():
     try:
         if args.kafka_username is not None and args.kafka_password is not None:
             with KafkaProducerContextManager(bootstrap_servers=[args.kafka_server],
-                                                    security_protocol="SASL_PLAINTEXT",
-                                                    sasl_plain_username=args.kafka_username,
-                                                    sasl_plain_password=args.kafka_password,
-                                                    sasl_mechanism="PLAIN",
-                                                    max_request_size=4194304) as producer:
+                                             security_protocol="SASL_PLAINTEXT",
+                                             sasl_plain_username=args.kafka_username,
+                                             sasl_plain_password=args.kafka_password,
+                                             sasl_mechanism="PLAIN",
+                                             max_request_size=4194304) as producer:
                 write_messages(args, producer)
         else:
             with KafkaProducerContextManager(bootstrap_servers=[args.kafka_server],
@@ -95,7 +95,7 @@ def write_messages(args, producer):
             # Not Batched, every line one kafka message
             if args.avro:
                 producer.write_avro([json.loads(line.strip())], schema, args.topic)
-            else :
+            else:
                 producer.write(bytes(line.strip(), 'utf-8'), args.topic)
                 
             #logging.debug('message send to kafka topic %s',args.topic)

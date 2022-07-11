@@ -2,7 +2,6 @@
 import argparse
 import json
 import logging
-import sdnotify
 import sys
 import time
 from threading import Thread, Event, Lock
@@ -25,11 +24,11 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.verbose > 0 else logging.INFO,
                         format='%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
 
-    if args.verbose == 1:
+    if args.verbose <= 1:
         for name in logging.root.manager.loggerDict:
             if name.startswith('kafka.'):
                 kafka_logger = logging.getLogger(name)
-                kafka_logger.setLevel(logging.INFO)
+                kafka_logger.setLevel(logging.INFO if args.verbose == 1 else logging.WARN)
 
     try:
         if args.kafka_username is not None and args.kafka_password is not None:
@@ -42,7 +41,7 @@ def main():
                 write_messages(args, producer)
         else:
             with KafkaProducerContextManager(bootstrap_servers=[args.kafka_server],
-                                                    max_request_size=4194304) as producer:    
+                                             max_request_size=4194304) as producer:
                 write_messages(args, producer)     
     except KeyboardInterrupt:
         logging.error('stopping due to keyboard interrupt')
@@ -62,16 +61,15 @@ def write_messages(args, producer):
     """
     Reads lines from stdin and transforms them to messages in kafka
     """
+
+    logging.debug('start write_messages')
     global time_of_last_message
     
-    systemd_notifier = sdnotify.SystemdNotifier()
-    systemd_notifier.notify('READY=1')
-
     logging_thread = Thread(target=log_process, args=(args.verbose,))
     logging_thread.setDaemon(True)
     logging_thread.start()
 
-    if args.avro: 
+    if args.avro:
         # Load AVRO schema
         config_schema = __import__(args.avro[0], fromlist=[args.avro[1]])
         schema = getattr(config_schema, args.avro[1])
@@ -84,19 +82,22 @@ def write_messages(args, producer):
         time_keeper_thread = Thread(target=write_after_timeout, args=(args, producer, schema,))
         time_keeper_thread.start()
 
+    logging.debug('starting to read from stdin')
     for line in sys.stdin:
         # Read message from stdin
-        systemd_notifier.notify('WATCHDOG=1')
-        #logging.debug('read line: %s',line.strip())
+        logging.debug(f'read line: {line}')
 
         # Send message to Kafka
         if not args.message_list:
+            logging.debug('not message list')
             
             # Not Batched, every line one kafka message
             if args.avro:
                 producer.write_avro([json.loads(line.strip())], schema, args.topic)
             else:
+                logging.debug('not avro')
                 producer.write(bytes(line.strip(), 'utf-8'), args.topic)
+                logging.debug(f'wrote {line}')
                 
             #logging.debug('message send to kafka topic %s',args.topic)
             global written_messages
@@ -112,8 +113,8 @@ def write_messages(args, producer):
             # time_keeper_thread ensures that list message is written after specified time if not enough messages are read received
     
     # All lines read, terminating gently
-    shutting_down.set()
     if args.message_list:
+        shutting_down.set()
         time_keeper_thread.join()
 
 
@@ -138,7 +139,7 @@ def write_after_timeout(args, producer, schema):
         time.sleep(0.5)
 
 
-def write_list(args, producer, schema) -> float:
+def write_list(args, producer, schema):
     """
     Writes the list message to the kafka topic
     """
@@ -167,6 +168,7 @@ def log_process(verbose):
         logging.debug('Wrote %d messages to kafka in last 5 min', written_messages)
         written_messages = 0
         time.sleep(60*5)
+
 
 if __name__ == '__main__':
     main()

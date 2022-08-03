@@ -29,6 +29,7 @@ def main():
     parser.add_argument('-n', '--num-messages', type=int, default=-1, help='Only read number of messages')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='enable debug logging. -vv enables also kafka debug logging')
+    parser.add_argument('--timeout', type=float, default=float('inf'), help='Number of ms to wait for a message')
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.verbose > 0 else logging.INFO,
@@ -44,18 +45,20 @@ def main():
         if args.kafka_username is not None and args.kafka_password is not None:
             # With authentication through security credentials
             with KafkaConsumerContextManager(args.topic, group_id=args.group_name,
-                                            bootstrap_servers=args.kafka_server, client_id=1,
-                                            security_protocol='SASL_PLAINTEXT',
-                                            sasl_mechanism='PLAIN', 
-                                            sasl_plain_username=args.kafka_username,
-                                            sasl_plain_password=args.kafka_password,
-                                            enable_auto_commit=False) as consumer:
+                                             bootstrap_servers=args.kafka_server, client_id=1,
+                                             security_protocol='SASL_PLAINTEXT',
+                                             sasl_mechanism='PLAIN',
+                                             sasl_plain_username=args.kafka_username,
+                                             sasl_plain_password=args.kafka_password,
+                                             enable_auto_commit=False,
+                                             consumer_timeout_ms=args.timeout) as consumer:
                 parse_messages(consumer, args)
         else:
             # Without authentication
             with KafkaConsumerContextManager(args.topic, group_id=args.group_name,
-                                            bootstrap_servers=args.kafka_server, client_id=1,
-                                            enable_auto_commit=False) as consumer:
+                                             bootstrap_servers=args.kafka_server, client_id=1,
+                                             enable_auto_commit=False,
+                                             consumer_timeout_ms=args.timeout) as consumer:
                 parse_messages(consumer, args)
 
     except KeyboardInterrupt:
